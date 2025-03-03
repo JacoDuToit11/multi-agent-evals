@@ -7,7 +7,7 @@ if __name__ == "__main__":
     parser.add_argument('--players', type=int, default=2, help='Number of players (2-4)')
     parser.add_argument('--difficulty', type=str, default='normal', choices=['easy', 'normal', 'hard'], 
                         help='Game difficulty (easy, normal, hard)')
-    parser.add_argument('--turns', type=int, default=10, help='Maximum number of turns')
+    parser.add_argument('--turns', type=int, default=2, help='Maximum number of turns')
     parser.add_argument('--seed', type=int, default=None, help='Random seed for deterministic behavior (default: random)')
     parser.add_argument('--deterministic', action='store_true', help='Use deterministic mode with default seed 42')
     

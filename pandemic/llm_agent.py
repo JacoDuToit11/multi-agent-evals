@@ -176,8 +176,8 @@ class LLMAgent:
                                 "description": "Player name for events that require a target player"
                             },
                             "additional_args": {
-                                "type": "object",
-                                "description": "Additional arguments specific to the event card"
+                                "type": "string",
+                                "description": "Additional arguments as a string for event-specific parameters"
                             }
                         },
                         "required": ["event_name"]
@@ -260,6 +260,37 @@ Use an action that costs 1 action point (out of your 4 per turn).
         
         connected_cities_desc = "\n".join(connected_cities)
         
+        # Create a compact view of all city connections
+        city_connections_map = {}
+        for city_name, city in game_state.cities.items():
+            # Format: City (Color): Connected City 1, Connected City 2, ...
+            connections_str = ", ".join(city.connections)
+            city_connections_map[f"{city_name} ({city.color.value})"] = connections_str
+        
+        # Group cities by color for better organization
+        blue_cities = []
+        yellow_cities = []
+        black_cities = []
+        red_cities = []
+        
+        for city_name, city in game_state.cities.items():
+            entry = f"{city_name}: {', '.join(city.connections)}"
+            if city.color == DiseaseColor.BLUE:
+                blue_cities.append(entry)
+            elif city.color == DiseaseColor.YELLOW:
+                yellow_cities.append(entry)
+            elif city.color == DiseaseColor.BLACK:
+                black_cities.append(entry)
+            elif city.color == DiseaseColor.RED:
+                red_cities.append(entry)
+        
+        # Create a compact city connections description
+        city_connections_desc = "CITY CONNECTIONS MAP (grouped by color):\n"
+        city_connections_desc += "BLUE CITIES:\n" + "\n".join(blue_cities) + "\n\n"
+        city_connections_desc += "YELLOW CITIES:\n" + "\n".join(yellow_cities) + "\n\n"
+        city_connections_desc += "BLACK CITIES:\n" + "\n".join(black_cities) + "\n\n"
+        city_connections_desc += "RED CITIES:\n" + "\n".join(red_cities)
+        
         # Create a list of players in the same city
         players_in_same_city = [p for p in game_state.players if p.location == self.player.location and p != self.player]
         players_desc = ""
@@ -308,6 +339,8 @@ Cards in your hand:
 You have {self.player.action_points} action points remaining.
 {message_summary}
 
+{city_connections_desc}
+
 What action would you like to take now? Choose the single best action.
 """
 
@@ -319,7 +352,14 @@ What action would you like to take now? Choose the single best action.
         # Add conversation history for context (limited to last few exchanges)
         if len(self.conversation_history) > 0:
             # Insert conversation history before the current query
-            for i, history_item in enumerate(self.conversation_history[-6:]):  # Last 3 exchanges (6 messages)
+            valid_history = []
+            for history_item in self.conversation_history[-6:]:  # Last 3 exchanges (6 messages)
+                # Ensure content is not empty
+                if history_item.get("content") and len(history_item["content"].strip()) > 0:
+                    valid_history.append(history_item)
+            
+            # Insert valid history items
+            for i, history_item in enumerate(valid_history):
                 messages.insert(i + 1, history_item)
         
         try:
@@ -335,18 +375,21 @@ What action would you like to take now? Choose the single best action.
             # Save the interaction in history
             self.conversation_history.append({"role": "user", "content": user_message})
             response_message = response.choices[0].message
-            self.conversation_history.append({"role": "assistant", "content": response_message.content or ""})
+            
+            # Ensure content is not None before adding to history
+            content_to_save = response_message.content or ""
+            self.conversation_history.append({"role": "assistant", "content": content_to_save})
             
             # Check for tool calls
             if response_message.tool_calls:
                 tool_call = response_message.tool_calls[0]
                 action_info = json.loads(tool_call.function.arguments)
                 action_info["action_type"] = tool_call.function.name
-                action_info["explanation"] = response_message.content
+                action_info["explanation"] = response_message.content or "No explanation provided"
                 return action_info
             else:
                 # No tool was called, manually extract action from text
-                return self._get_default_action(response_message.content)
+                return self._get_default_action(response_message.content or "")
                 
         except Exception as e:
             self.retry_count += 1
