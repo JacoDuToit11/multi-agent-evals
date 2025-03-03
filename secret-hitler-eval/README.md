@@ -1,1 +1,0 @@
-Multi-agent evaluation in Inspect for Secret Hitler game
